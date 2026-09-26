@@ -5,7 +5,7 @@
 // then painted. A bee without its own portrait shows the placeholder mark, never the official bees' art.
 import { useEffect, useState } from "react";
 import { BEE_MARK_URL } from "./BeeMark";
-import { HIVE_DISCLAIMER } from "./types";
+import { BEE_NAMES, HIVE_DISCLAIMER } from "./types";
 
 interface StyleInfo {
   id: string;
@@ -101,7 +101,7 @@ export function Setup() {
       .then((r) => r.json() as Promise<Status>)
       .then((s) => {
         setStatus(s);
-        setBees([0, 1, 2].map(() => ({ ask: "", design: null, img: null, busy: "", error: "" })));
+        setBees(BEE_NAMES.map(() => ({ ask: "", design: null, img: null, busy: "", error: "" })));
       })
       .catch(() => setError("Can't reach the engine. Give it a few seconds, then reload."));
   }, []);
@@ -226,7 +226,7 @@ export function Setup() {
     );
   }
 
-  const beesReady = bees.length === 3 && bees.every((b) => b.design && b.img && !nameProblem(b.design.name));
+  const beesReady = bees.length === BEE_NAMES.length && bees.every((b) => b.design && b.img && !nameProblem(b.design.name));
   const anyBusy = busy || bees.some((b) => b.busy);
 
   return (
@@ -442,7 +442,7 @@ export function Setup() {
               })}
             </div>
             <div className="setup-actions">
-              {!beesReady && <span className="dim small setup-hint">Create all three bees and paint their portraits to carry on.</span>}
+              {!beesReady && <span className="dim small setup-hint">Create your bee and paint its portrait to carry on.</span>}
               <button className="ghost" onClick={() => setStep(3)}>
                 Back
               </button>
@@ -492,7 +492,7 @@ export function Setup() {
               ))}
             </ul>
             <p>
-              Each bee starts with <b>$333 of paper money</b>, and trades OKX perpetuals at real prices. The engine saves your settings, restarts, and opens
+              Your bee starts with <b>$333 of paper money</b>, and trades BingX perpetuals at real prices. The engine saves your settings, restarts, and opens
               the live dashboard. The setup page then closes for good. To run it again later, see the README.
             </p>
             <p>

@@ -105,7 +105,7 @@ export class Engine {
     }
 
     await this.refreshMarket();
-    if (this.d.exec.kind === "okx") await this.reconcile();
+    if (this.d.exec.kind !== "sim") await this.reconcile();
 
     this.d.bus.emit("status", { event: "engine_start", mode: cfg.mode, tickMs: cfg.tickMs });
     this.d.alerts.send(`engine started (MODE=${cfg.mode})`);
@@ -142,7 +142,7 @@ export class Engine {
     try {
       await this.d.feed.refresh(this.now());
       this.rankBoozyHourly();
-      if (this.d.exec.kind === "okx") await this.pollFunding();
+      if (this.d.exec.kind !== "sim") await this.pollFunding();
     } catch (err) {
       log.warn("market refresh failed", { err: safeError(err) });
     } finally {
@@ -179,7 +179,7 @@ export class Engine {
         }
       }
       this.d.bus.emit("equity", { bees: BEES.map((id) => this.publicBee(id)) }, now);
-      if (this.d.exec.kind === "okx" && now - this.lastReconAt >= RECON_MS) await this.reconcile();
+      if (this.d.exec.kind !== "sim" && now - this.lastReconAt >= RECON_MS) await this.reconcile();
       this.checkJevOutage(now);
     } finally {
       this.ticking = false;
@@ -611,7 +611,7 @@ export class Engine {
       const theirSigned = theirs?.pos ?? 0;
       const sameInst = (ours?.instId ?? null) === (theirs?.instId ?? null);
       let ok = ex.length <= 1 && sameInst && Math.abs(oursSigned - theirSigned) < 1e-9;
-      let detail = ok ? "match" : `ours ${ours ? `${ours.side} ${ours.contracts} ${ours.coin}` : "flat"} vs OKX ${theirs ? `${theirs.pos} ${theirs.instId.split("-")[0]}` : "flat"}`;
+      let detail = ok ? "match" : `ours ${ours ? `${ours.side} ${ours.contracts} ${ours.coin}` : "flat"} vs exchange ${theirs ? `${theirs.pos} ${theirs.instId.split("-")[0]}` : "flat"}`;
 
       // Fees to the cent on our recent filled orders.
       const rows = this.d.db.raw
@@ -624,7 +624,7 @@ export class Engine {
           const theirSum = [...theirFees.values()].reduce((a, b) => a + b, 0);
           if (Math.abs(ourSum - theirSum) >= 0.005) {
             ok = false;
-            detail += `; fees ours $${ourSum.toFixed(2)} vs OKX $${theirSum.toFixed(2)}`;
+            detail += `; fees ours $${ourSum.toFixed(2)} vs exchange $${theirSum.toFixed(2)}`;
           }
         }
       }

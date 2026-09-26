@@ -1,13 +1,14 @@
 import { z } from "zod";
+import { BINGX_DEMO, BINGX_LIVE, type BingxCreds } from "./bingx/client.js";
 import { STYLE_INFO, STYLES, type Settings, type StyleId } from "./settings.js";
 
-/** Three bee slots. Each one trades one of the three styles (settings.ts); two bees may share a style. */
-export const BEES = ["bee1", "bee2", "bee3"] as const;
+/** BingX branch: a single bee slot, trading one of the three styles (settings.ts). */
+export const BEES = ["bee1"] as const;
 export type BeeId = (typeof BEES)[number];
 export { STYLES, type StyleId };
 
 /** With no Setup file (settings only from .env), the bees are the original three. */
-const DEFAULT_SLOTS: Record<BeeId, StyleId> = { bee1: "bizzy", bee2: "breezy", bee3: "boozy" };
+const DEFAULT_SLOTS: Record<BeeId, StyleId> = { bee1: "bizzy" };
 /** Typed as the only acknowledgement that unlocks MODE=live. */
 export const LIVE_ACK_PHRASE = "I-ACCEPT-REAL-MONEY-RISK";
 
@@ -50,15 +51,6 @@ const perStyle = (prefix: string, d: { trades: number; fee: number; spread: numb
   [`${prefix}_STOP_ATR_MULT`]: num(d.stopAtr),
   [`${prefix}_MAX_FLAT_MINUTES`]: num(d.maxFlat),
 });
-// Per-bee OKX keys (demo or live only): BEE1_OKX_API_KEY, BEE1_OKX_DEMO_API_KEY, ...
-const perSlot = (prefix: string) => ({
-  [`${prefix}_OKX_API_KEY`]: opt,
-  [`${prefix}_OKX_API_SECRET`]: opt,
-  [`${prefix}_OKX_API_PASSPHRASE`]: opt,
-  [`${prefix}_OKX_DEMO_API_KEY`]: opt,
-  [`${prefix}_OKX_DEMO_API_SECRET`]: opt,
-  [`${prefix}_OKX_DEMO_API_PASSPHRASE`]: opt,
-});
 
 const EnvSchema = z.object({
   // DRY_RUN=true (the default) forces MODE=dry whatever MODE says. Going to demo or live needs both DRY_RUN=false and MODE set.
@@ -73,9 +65,13 @@ const EnvSchema = z.object({
   TICK_MS: num(10_000),
   DATA_REFRESH_MS: num(60_000),
 
-  OKX_SITE: z.literal("eea").optional().default("eea"),
-  OKX_API_BASE: str("https://eea.okx.com"),
-  OKX_CLI_TIMEOUT_MS: num(15_000),
+  // BingX USDT-M perpetual swaps. Demo (VST) uses the same keys on its own host.
+  BINGX_API_BASE: str(BINGX_LIVE),
+  BINGX_DEMO_API_BASE: str(BINGX_DEMO),
+  BINGX_TIMEOUT_MS: num(15_000),
+  // Demo or live only. Keys: Read + Perpetual Futures trading ONLY. Never Withdraw.
+  BINGX_API_KEY: opt,
+  BINGX_API_SECRET: opt,
 
   BEE_START_EQUITY_USD: num(333),
   MAX_LEVERAGE: num(2),
@@ -88,6 +84,7 @@ const EnvSchema = z.object({
   LIVE_RAMP_HOURS: num(2),
   MIN_24H_VOL_USD: num(1_000_000),
   ALLOW_NON_CRYPTO: bool(false),
+  MAX_UNIVERSE_COINS: num(60),
   TAKER_FEE_RATE: num(0.0005),
 
   BREEZY_MIN_OPEN_PROB: num(0.7),
@@ -100,9 +97,6 @@ const EnvSchema = z.object({
   ...perStyle("BREEZY", { trades: 3, fee: 1.0, spread: 5, cooldown: 240, stopAtr: 2, maxFlat: 0 }),
   ...perStyle("BIZZY", { trades: 1, fee: 1.0, spread: 5, cooldown: 5, stopAtr: 1.5, maxFlat: 20 }),
   ...perStyle("BOOZY", { trades: 3, fee: 3.0, spread: 15, cooldown: 2, stopAtr: 2, maxFlat: 0 }),
-  ...perSlot("BEE1"),
-  ...perSlot("BEE2"),
-  ...perSlot("BEE3"),
   // Real money needs DRY_RUN=false, MODE=live AND this set to LIVE_ACK_PHRASE. Paper trading needs none of it.
   LIVE_ACK: opt,
 
@@ -138,6 +132,7 @@ export interface BeeKnobs {
   maxFlatMinutes: number;
 }
 
+/** Kept for the OKX code still in the tree (tools, the unused OKX executor). */
 export interface OkxCreds {
   apiKey: string;
   secretKey: string;
@@ -169,7 +164,8 @@ export interface Config {
   jev: { apiKey: string; model: string; timeoutMs: number; dailyUsdCap: number; usdPerMTok: number };
   tickMs: number;
   dataRefreshMs: number;
-  okx: { site: "eea"; apiBase: string; cliTimeoutMs: number };
+  /** apiBase is already the demo (VST) host in MODE=demo. Market data always comes from live BingX. */
+  bingx: { apiBase: string; marketBase: string; timeoutMs: number };
   risk: {
     startEquityUsd: number;
     maxLeverage: number;
@@ -181,14 +177,14 @@ export interface Config {
     liveRampHours: number;
     takerFeeRate: number;
   };
-  universe: { min24hVolUsd: number; allowNonCrypto: boolean };
+  universe: { min24hVolUsd: number; allowNonCrypto: boolean; maxCoins: number };
   /** Knobs per trading style. */
   bees: Record<StyleId, BeeKnobs>;
   breezy: { minOpenProb: number; minSizeUsd: number };
   bizzy: { sizeFraction: number; universeSize: number; timeStopMinutes: number };
   boozy: { candidates: number };
-  /** Per-bee OKX credentials for the current mode. Never logged, never sent to the dashboard. */
-  creds: Partial<Record<BeeId, OkxCreds>>;
+  /** BingX credentials for the current mode. Never logged, never sent to the dashboard. */
+  creds: Partial<Record<BeeId, BingxCreds>>;
   server: { port: number; bind: string };
   dbPath: string;
   logLevel: "debug" | "info" | "warn" | "error";
@@ -226,19 +222,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, settings: Setti
       : { style, name: STYLE_INFO[style].name, tagline: STYLE_INFO[style].tagline, customImage: false, rules: "", coins: [], fromSetup: false };
   });
 
-  const creds: Partial<Record<BeeId, OkxCreds>> = {};
+  const creds: Partial<Record<BeeId, BingxCreds>> = {};
   if (mode !== "dry") {
-    const infix = mode === "demo" ? "OKX_DEMO_API" : "OKX_API";
-    for (const bee of BEES) {
-      const p = bee.toUpperCase();
-      const k = e[`${p}_${infix}_KEY`] as string | undefined;
-      const s = e[`${p}_${infix}_SECRET`] as string | undefined;
-      const ph = e[`${p}_${infix}_PASSPHRASE`] as string | undefined;
-      if (!k) missing.push(`${p}_${infix}_KEY`);
-      if (!s) missing.push(`${p}_${infix}_SECRET`);
-      if (!ph) missing.push(`${p}_${infix}_PASSPHRASE`);
-      if (k && s && ph) creds[bee] = { apiKey: k, secretKey: s, passphrase: ph };
-    }
+    if (!e.BINGX_API_KEY) missing.push("BINGX_API_KEY");
+    if (!e.BINGX_API_SECRET) missing.push("BINGX_API_SECRET");
+    if (e.BINGX_API_KEY && e.BINGX_API_SECRET) creds.bee1 = { apiKey: e.BINGX_API_KEY, secretKey: e.BINGX_API_SECRET };
   }
   if (missing.length) {
     throw new ConfigError(`MODE=${mode} needs these settings, which are blank or missing:\n  ${missing.join("\n  ")}`);
@@ -274,7 +262,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, settings: Setti
     },
     tickMs: Math.max(1000, e.TICK_MS),
     dataRefreshMs: Math.max(15_000, e.DATA_REFRESH_MS),
-    okx: { site: e.OKX_SITE, apiBase: e.OKX_API_BASE.replace(/\/+$/, ""), cliTimeoutMs: e.OKX_CLI_TIMEOUT_MS },
+    bingx: {
+      apiBase: (mode === "demo" ? e.BINGX_DEMO_API_BASE : e.BINGX_API_BASE).replace(/\/+$/, ""),
+      marketBase: e.BINGX_API_BASE.replace(/\/+$/, ""),
+      timeoutMs: e.BINGX_TIMEOUT_MS,
+    },
     risk: {
       startEquityUsd: e.BEE_START_EQUITY_USD,
       maxLeverage: e.MAX_LEVERAGE,
@@ -286,7 +278,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, settings: Setti
       liveRampHours: e.LIVE_RAMP_HOURS,
       takerFeeRate: e.TAKER_FEE_RATE,
     },
-    universe: { min24hVolUsd: e.MIN_24H_VOL_USD, allowNonCrypto: e.ALLOW_NON_CRYPTO },
+    universe: { min24hVolUsd: e.MIN_24H_VOL_USD, allowNonCrypto: e.ALLOW_NON_CRYPTO, maxCoins: Math.max(1, e.MAX_UNIVERSE_COINS) },
     bees: { bizzy: knobs("bizzy"), breezy: knobs("breezy"), boozy: knobs("boozy") },
     breezy: { minOpenProb: e.BREEZY_MIN_OPEN_PROB, minSizeUsd: e.BREEZY_MIN_SIZE_USD },
     bizzy: { sizeFraction: e.BIZZY_SIZE_FRACTION, universeSize: e.BIZZY_UNIVERSE_SIZE, timeStopMinutes: e.BIZZY_TIME_STOP_MINUTES },

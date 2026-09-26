@@ -15,13 +15,13 @@ export interface GateOpts {
   allowNonCrypto: boolean;
 }
 
-/** Hard rule 5: discover, never hard-code. Live, X-Perp, not TEST*, crypto unless allowed, volume and spread gates. */
+/** Hard rule 5: discover, never hard-code. Live, USDT perp, not TEST*, crypto unless allowed, volume and spread gates. */
 export function gateUniverse(instruments: Iterable<Instrument>, tickers: Map<string, Ticker>, g: GateOpts): UniverseResult {
   const tradable: Array<[string, number]> = [];
   const spreadBlocked: string[] = [];
   const unknown: string[] = [];
   for (const i of instruments) {
-    if (i.state !== "live" || !i.instId.includes("_UM_XPERP-") || i.coin.startsWith("TEST")) continue;
+    if (i.state !== "live" || !i.instId.endsWith("-USDT") || i.coin.startsWith("TEST")) continue;
     if (i.kind === "unknown") {
       unknown.push(i.instId);
       continue;

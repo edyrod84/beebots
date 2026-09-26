@@ -15,7 +15,7 @@ function Clock() {
 function Recon({ recon, mode }: { recon: Snapshot["recon"] | undefined; mode: Snapshot["mode"] | undefined }) {
   const state = !recon || recon.ok === null ? "idle" : recon.ok ? "ok" : "bad";
   const text =
-    state === "ok" ? "books match OKX to the cent" : state === "bad" ? recon!.detail : mode === "dry" ? "paper trading: simulated books" : "first check pending";
+    state === "ok" ? "books match BingX to the cent" : state === "bad" ? recon!.detail : mode === "dry" ? "paper trading: simulated books" : "first check pending";
   return (
     <div className={`recon recon-${state}`} title={recon?.detail}>
       <span className="recon-light" aria-hidden />
@@ -68,14 +68,14 @@ export function Header({ snap, connected, stalled, soundOn, onSound }: { snap: S
           <HiveButton />
         </div>
         <div className="brand-sub">
-          <span className={`mode mode-${snap?.mode ?? "dry"}`}>{snap?.mode === "live" ? "● LIVE MONEY" : snap?.mode === "demo" ? "OKX DEMO" : "PAPER TRADING"}{snap?.closed ? (snap.closed.flat ? " · ENDED" : " · CLOSING") : ""}</span>
+          <span className={`mode mode-${snap?.mode ?? "dry"}`}>{snap?.mode === "live" ? "● LIVE MONEY" : snap?.mode === "demo" ? "BINGX DEMO (VST)" : "PAPER TRADING"}{snap?.closed ? (snap.closed.flat ? " · ENDED" : " · CLOSING") : ""}</span>
           {snap?.update ? (
             <a className="update-pill" href={`${PROFILE.links?.code ?? "https://github.com/imikerussell/beebots"}/releases/latest`} target="_blank" rel="noopener" title={`You run ${snap.update.current}. See what's new and how to update.`}>
               Update available: {snap.update.latest} ↗
             </a>
           ) : null}
           <span className="dim">
-            day {day} · 3 bees · OKX X-Perps · not financial advice
+            day {day} · BingX perps · not financial advice
           </span>
         </div>
       </div>

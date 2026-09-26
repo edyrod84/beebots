@@ -6,13 +6,13 @@ import { loadConfig, STYLES as BEES, type BeeId } from "../config.js";
 import { Jev } from "../jev.js";
 import { freshBee } from "../ledger.js";
 import { MarketFeed } from "../market/data.js";
-import { createPublicApi } from "../okx/public.js";
+import { createBingxPublicApi } from "../bingx/public.js";
 import { buildSnapshot } from "../snapshot.js";
 
 const N = Number(process.argv[2] ?? 100);
 const cfg = loadConfig({ ...process.env, DRY_RUN: "true" });
 const feed = new MarketFeed(
-  createPublicApi(cfg.okx.apiBase),
+  createBingxPublicApi(cfg.bingx.marketBase),
   { min24hVolUsd: cfg.universe.min24hVolUsd, allowNonCrypto: false, spreadGateBps: Math.max(...BEES.map((b) => cfg.bees[b].spreadGateBps)), trendCoins: [...BREEZY_COINS] },
   null,
   () => [],

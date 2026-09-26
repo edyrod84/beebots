@@ -22,6 +22,8 @@ export interface FeedOpts {
   spreadGateBps: number;
   /** Coins that always get stats + 4h trend data (breezy's majors). */
   trendCoins: string[];
+  /** Keep only the N most traded coins that pass the gates (BingX lists hundreds; each costs ~5 calls per refresh). */
+  maxCoins?: number;
 }
 
 const HOUR = 3_600_000;
@@ -123,25 +125,27 @@ export class MarketFeed {
       this.instruments = new Map(list.map((i) => [i.instId, i]));
       this.instrumentsAt = now;
     }
-    const [tickers, oi] = await Promise.all([this.api.tickers(), this.api.openInterest()]);
+    const tickers = await this.api.tickers();
     this.tickers = tickers;
     const u = gateUniverse(this.instruments.values(), tickers, {
       min24hVolUsd: this.opts.min24hVolUsd,
       spreadGateBps: this.opts.spreadGateBps,
       allowNonCrypto: this.opts.allowNonCrypto,
     });
-    this.gated = u.tradable;
+    this.gated = u.tradable.slice(0, this.opts.maxCoins ?? Infinity);
     this.spreadBlocked = u.spreadBlocked;
 
+    const trendIds = this.opts.trendCoins.map((c) => this.instIdForCoin(c)).filter((x): x is string => !!x);
+    const want = [...new Set([...this.gated, ...trendIds, ...this.heldInstIds()])].filter((id) => this.instruments.has(id) && tickers.has(id));
+
+    // BingX answers open interest per symbol, so only the coins we track are asked for.
+    const oi = await this.api.openInterest(want);
     for (const [id, v] of oi) {
       const h = this.oiHistory.get(id) ?? [];
       h.push([now, v]);
       while (h.length && h[0]![0] < now - 2 * HOUR) h.shift();
       this.oiHistory.set(id, h);
     }
-
-    const trendIds = this.opts.trendCoins.map((c) => this.instIdForCoin(c)).filter((x): x is string => !!x);
-    const want = [...new Set([...this.gated, ...trendIds, ...this.heldInstIds()])].filter((id) => this.instruments.has(id) && tickers.has(id));
 
     const next = new Map<string, CoinStats>();
     await Promise.all(

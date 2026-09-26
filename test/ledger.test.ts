@@ -41,13 +41,13 @@ describe("ledger", () => {
   });
 
   it("short P&L is mirrored", () => {
-    const b = freshBee("bee3", 333, NOW);
+    const b = freshBee("bee1", 333, NOW);
     applyFill(b, f("sell", 50, 100));
     expect(applyFill(b, f("buy", 50, 90))).toBeCloseTo(5, 10);
   });
 
   it("adding averages the entry, trimming keeps it", () => {
-    const b = freshBee("bee2", 333, NOW);
+    const b = freshBee("bee1", 333, NOW);
     applyFill(b, f("buy", 100, 100));
     applyFill(b, f("buy", 100, 110));
     expect(b.position!.entryPx).toBeCloseTo(105);
@@ -76,7 +76,7 @@ describe("ledger", () => {
     expect(rollDay(b, NOW)).toBe(false);
     expect(rollDay(b, NOW + 86_400_000)).toBe(true);
     expect(b).toMatchObject({ tradesToday: 0, feesTodayUsd: 0, cap: null });
-    const r = { ...freshBee("bee3", 333, NOW), cap: "retired" as const };
+    const r = { ...freshBee("bee1", 333, NOW), cap: "retired" as const };
     rollDay(r, NOW + 86_400_000);
     expect(r.cap).toBe("retired");
   });

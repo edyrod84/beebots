@@ -16,7 +16,7 @@ import { hashPassword, MAX_PASSWORD, MIN_PASSWORD, readJson, send } from "./gate
 import { checkJevKey } from "./jev.js";
 import { log } from "./log.js";
 import { deriveStyle } from "./bees/custom.js";
-import { fetchXperpCoins } from "./okx/public.js";
+import { fetchBingxCoins } from "./bingx/public.js";
 import { checkOpenAiKey, designBee, OpenAiError, paintBee, type BeeDesign } from "./openai.js";
 import { safeError } from "./redact.js";
 import { clientAddr } from "./visitors.js";
@@ -38,7 +38,7 @@ export interface SetupOpts {
   /** Called after a successful save (the engine exits so Docker restarts it). */
   onSaved: () => void;
   /** OKX EEA public REST base, for the live coin list. */
-  okxApiBase: string;
+  bingxApiBase: string;
   /** Minutes after the engine starts that Setup stays open (SETUP_WINDOW_MIN). */
   windowMin: number;
   now?: () => number;
@@ -103,7 +103,7 @@ const SaveBody = z.object({
   jevKey: z.string().trim().min(8),
   openaiKey: z.string().trim().min(8).optional(),
   accept: Accept,
-  bees: z.array(SetupBee).length(3),
+  bees: z.array(SetupBee).length(BEES.length),
   /** Gates the dashboard's writes (joining or leaving the Hive). Stored as a salted scrypt hash only. */
   ownerPassword: z.string().min(MIN_PASSWORD).max(MAX_PASSWORD),
   /** "Join the Hive?" step: an explicit yes or no. A yes joins on the engine's first start (hive.ts). */
@@ -128,7 +128,7 @@ export class Setup {
     this.now = o.now ?? Date.now;
     this.openedAt = this.now();
     this.checkJev = o.checkJev ?? checkJevKey;
-    this.listCoins = o.listCoins ?? (() => fetchXperpCoins(o.okxApiBase));
+    this.listCoins = o.listCoins ?? (() => fetchBingxCoins(o.bingxApiBase));
     this.design = o.design ?? designBee;
     this.paint = o.paint ?? paintBee;
   }

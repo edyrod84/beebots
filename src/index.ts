@@ -8,14 +8,13 @@ import { Engine } from "./engine.js";
 import { EventBus } from "./events.js";
 import { hashPassword, MIN_PASSWORD } from "./gate.js";
 import { Hive, hivePath } from "./hive.js";
-import { OkxExecutor, SimExecutor, type Executor } from "./exec/executor.js";
+import { BingxExecutor } from "./bingx/executor.js";
+import { createBingxClient } from "./bingx/client.js";
+import { createBingxPublicApi } from "./bingx/public.js";
+import { SimExecutor, type Executor } from "./exec/executor.js";
 import { Jev } from "./jev.js";
 import { log, setLogLevel } from "./log.js";
 import { MarketFeed } from "./market/data.js";
-import { createOkxCli } from "./okx/cli.js";
-import { createNewsSource } from "./okx/news.js";
-import { createPublicApi } from "./okx/public.js";
-import { createOkxPublicRest } from "./okx/rest.js";
 import { safeError } from "./redact.js";
 import { startServer } from "./server.js";
 import { loadSettings, STYLE_INFO } from "./settings.js";
@@ -62,7 +61,7 @@ function runSetup() {
     openai: { apiKey: env.OPENAI_API_KEY?.trim() || undefined, textModel: env.OPENAI_TEXT_MODEL?.trim() || "gpt-5.4-nano", imageModel: env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2" },
     refDir: REF_DIR,
     windowMin: Math.max(1, Number(env.SETUP_WINDOW_MIN) || 120),
-    okxApiBase: env.OKX_API_BASE?.trim().replace(/\/+$/, "") || "https://eea.okx.com",
+    bingxApiBase: env.BINGX_API_BASE?.trim().replace(/\/+$/, "") || "https://open-api.bingx.com",
     onSaved: () => {
       log.info("settings saved; exiting so Docker restarts the engine with them");
       process.exit(0);
@@ -92,22 +91,19 @@ async function main() {
   const db = new Db(cfg.dbPath);
   const bus = new EventBus(db);
   const alerts = new Alerts(cfg.alertWebhookUrl);
-  const cli = createOkxCli({ site: cfg.okx.site, timeoutMs: cfg.okx.cliTimeoutMs });
-  // Public market data runs in-process on the kit's REST client; the CLI (one child process per call) is kept for
-  // the signed per-bee calls only.
-  const api = createPublicApi(cfg.okx.apiBase, cfg.mode === "demo", createOkxPublicRest({ apiBase: cfg.okx.apiBase, timeoutMs: cfg.okx.cliTimeoutMs }));
-  const demo = cfg.mode === "demo";
+  // Market data always comes from live BingX (VST mirrors its symbols and prices); orders go to cfg.bingx.apiBase.
+  const api = createBingxPublicApi(cfg.bingx.marketBase, createBingxClient({ apiBase: cfg.bingx.marketBase, timeoutMs: cfg.bingx.timeoutMs }));
 
   let engine: Engine | null = null;
   const held = () => (engine ? BEES.map((id) => engine!.bees[id]?.position?.instId).filter((x): x is string => !!x) : []);
-  // News needs a key: borrow the first Momentum bee's (demo/live only).
-  const newsCreds = BEES.filter((b) => cfg.slots[b].style === "boozy").map((b) => cfg.creds[b]).find((c) => !!c);
-  const news = cfg.mode !== "dry" && newsCreds ? createNewsSource(cli, newsCreds, demo) : null;
+  // The news/sentiment feed was OKX-only; BingX has none, so newsZ and sentiment stay null.
+  const news = null;
   const feed = new MarketFeed(
     api,
     {
       min24hVolUsd: cfg.universe.min24hVolUsd,
       allowNonCrypto: cfg.universe.allowNonCrypto,
+      maxCoins: cfg.universe.maxCoins,
       spreadGateBps: Math.max(...STYLES.map((s) => cfg.bees[s].spreadGateBps)),
       trendCoins: [...BREEZY_COINS],
     },
@@ -118,7 +114,7 @@ async function main() {
   const exec: Executor =
     cfg.mode === "dry"
       ? new SimExecutor(() => feed.view(), cfg.risk.takerFeeRate)
-      : new OkxExecutor(cli, cfg.creds, demo, (id) => feed.view().instruments.get(id), cfg.risk.maxLeverage);
+      : new BingxExecutor(createBingxClient({ apiBase: cfg.bingx.apiBase, timeoutMs: cfg.bingx.timeoutMs }), cfg.creds, (id) => feed.view().instruments.get(id), cfg.risk.maxLeverage);
 
   const startOfDay = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
   const jev = new Jev({ ...cfg.jev, spentTodayUsd: db.jevSpendSince(startOfDay) });

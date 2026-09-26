@@ -2,8 +2,9 @@
 import { BEE_MARK_URL } from "./BeeMark";
 
 /** The three bee slots. Names, taglines and portraits come from the engine's /profile (set on the Setup page). */
+/** BingX branch: one bee. The other two slots stay typed so the original art and demo data still compile. */
 export type BeeName = "bee1" | "bee2" | "bee3";
-export const BEE_NAMES: BeeName[] = ["bee1", "bee2", "bee3"];
+export const BEE_NAMES: BeeName[] = ["bee1"];
 
 export type Cap = "trade_cap" | "fee_budget" | "loss_stop" | "retired" | null;
 

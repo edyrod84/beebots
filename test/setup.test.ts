@@ -19,7 +19,7 @@ const BEES = [
   { name: "Rex", style: "boozy", tagline: "the wild one", rules: "Chase whatever is pumping hardest this week.", coins: [], look: "a bee with a dinosaur hoodie", image: true },
 ];
 const ACCEPT = { notAdvice: true, paperDefault: true, ownRisk: true };
-const SAVE = { jevKey: "good-jev-key", openaiKey: "sk-test-key", ownerPassword: "correct horse", accept: ACCEPT, bees: BEES, hive: false };
+const SAVE = { jevKey: "good-jev-key", openaiKey: "sk-test-key", ownerPassword: "correct horse", accept: ACCEPT, bees: [BEES[0]], hive: false }; // BingX branch: one bee
 
 const design = (over: Partial<BeeDesign> = {}): BeeDesign => ({
   name: "Donny",
@@ -46,7 +46,7 @@ async function boot(opts: { designs?: BeeDesign[] } = {}) {
     jevModel: "jev-test",
     openai: { textModel: "t", imageModel: "i" },
     refDir: dir,
-    okxApiBase: "https://okx.invalid",
+    bingxApiBase: "https://bingx.invalid",
     windowMin: 120,
     now: () => now,
     onSaved: () => saved++,
@@ -131,12 +131,10 @@ describe("setup", () => {
     expect(t.saved()).toBe(1);
     expect((await t.post("/setup/save", SAVE)).status).toBe(409);
     const s = loadSettings(t.settingsPath)!;
-    expect(s.bees.map((b) => b.image)).toEqual([true, true, true]);
-    expect(s.bees[1]).toMatchObject({ name: "Donny", rules: BEES[1]!.rules, coins: ["TRUMP"], style: "boozy" });
+    expect(s.bees.map((b) => b.image)).toEqual([true]);
     const cfg = loadConfig({}, s);
     expect(cfg.mode).toBe("dry");
     expect(cfg.slots.bee1).toMatchObject({ name: "Granny", style: "breezy", coins: ["BTC"], fromSetup: true });
-    expect(cfg.slots.bee2.rules).toMatch(/TRUMP/);
     expect(readFileSync(t.settingsPath, "utf8")).not.toContain("correct horse");
     expect(s.ownerPasswordHash).toMatch(/^scrypt\$/);
     expect(verifyPassword("correct horse", s.ownerPasswordHash!)).toBe(true);
@@ -154,7 +152,7 @@ describe("setup", () => {
 
   it("can't save until every bee has its portrait", async () => {
     const t = await boot();
-    const noImage = BEES.map((b, i) => (i === 2 ? { ...b, image: false } : b));
+    const noImage = [{ ...BEES[0]!, image: false }];
     expect((await t.post("/setup/save", { ...SAVE, bees: noImage })).status).toBe(400);
     // The page claims portraits, but none were painted on this server.
     const r = await t.post("/setup/save", SAVE);
@@ -166,7 +164,7 @@ describe("setup", () => {
   it("can't save bees that were never designed (no rules or look)", async () => {
     const t = await boot();
     t.paintAll();
-    const bare = BEES.map(({ name, style, tagline, image }) => ({ name, style, tagline, image }));
+    const bare = [BEES[0]!].map(({ name, style, tagline, image }) => ({ name, style, tagline, image }));
     expect((await t.post("/setup/save", { ...SAVE, bees: bare })).status).toBe(400);
   });
 
@@ -181,18 +179,17 @@ describe("setup", () => {
   it("re-checks coins and the brain on save: unknown coins dropped, style forced from the coins", async () => {
     const t = await boot();
     t.paintAll();
-    const bees = [{ ...BEES[0]!, style: "breezy", coins: ["BTC", "NOPE"] }, { ...BEES[1]!, style: "bizzy" }, BEES[2]];
+    const bees = [{ ...BEES[1]!, style: "bizzy", coins: ["TRUMP", "NOPE"] }];
     expect((await t.post("/setup/save", { ...SAVE, bees })).status).toBe(200);
     const s = loadSettings(t.settingsPath)!;
-    expect(s.bees[0]).toMatchObject({ coins: ["BTC"], style: "breezy" });
-    expect(s.bees[1]).toMatchObject({ coins: ["TRUMP"], style: "boozy" }); // Breakout can't trade TRUMP
+    expect(s.bees[0]).toMatchObject({ coins: ["TRUMP"], style: "boozy" }); // Breakout can't trade TRUMP
   });
 
   it("refuses the official bees' names, typed by the owner", async () => {
     const t = await boot();
     t.paintAll();
     for (const name of ["Bizzy", "breezy-bee", "Boozy Bee", "BIZZIE"]) {
-      const bees = [{ ...BEES[0]!, name }, BEES[1], BEES[2]];
+      const bees = [{ ...BEES[0]!, name }];
       expect((await t.post("/setup/save", { ...SAVE, bees })).status).toBe(400);
     }
   });
@@ -200,7 +197,7 @@ describe("setup", () => {
   it("rejects bad bee names", async () => {
     const t = await boot();
     t.paintAll();
-    const bees = [{ ...BEES[0]!, name: "<script>" }, BEES[1], BEES[2]];
+    const bees = [{ ...BEES[0]!, name: "<script>" }];
     expect((await t.post("/setup/save", { ...SAVE, bees })).status).toBe(400);
   });
 
@@ -303,8 +300,8 @@ describe("settings", () => {
   });
 
   it("keeps coins as upper-case tickers", () => {
-    const s = SettingsSchema.parse({ version: 1, jevKey: "k".repeat(8), acceptedRiskAt: 1, createdAt: 1, bees: [BEES[0], BEES[1], { ...BEES[2], coins: ["doge"] }] });
-    expect(s.bees[2]!.coins).toEqual(["DOGE"]);
-    expect(() => SettingsSchema.parse({ version: 1, jevKey: "k".repeat(8), acceptedRiskAt: 1, createdAt: 1, bees: [BEES[0], BEES[1], { ...BEES[2], coins: ["$$$"] }] })).toThrow();
+    const s = SettingsSchema.parse({ version: 1, jevKey: "k".repeat(8), acceptedRiskAt: 1, createdAt: 1, bees: [{ ...BEES[2], coins: ["doge"] }] });
+    expect(s.bees[0]!.coins).toEqual(["DOGE"]);
+    expect(() => SettingsSchema.parse({ version: 1, jevKey: "k".repeat(8), acceptedRiskAt: 1, createdAt: 1, bees: [{ ...BEES[2], coins: ["$$$"] }] })).toThrow();
   });
 });

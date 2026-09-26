@@ -1,0 +1,68 @@
+# beebots (BingX branch) on your own machine: one bee, built from this checkout, dashboard at http://localhost:8080
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose -f docker-compose.local.yml logs -f engine
+#
+# Paper trading by default (real BingX prices, simulated money). Settings go in a .env next to this file
+# (see .env.example): BingX keys only for MODE=demo (VST) or live.
+name: beebots-bingx
+
+services:
+  engine:
+    image: beebots-engine:bingx
+    build: .
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DRY_RUN: ${DRY_RUN:-true}
+      MODE: ${MODE:-dry}
+      LIVE_ACK: ${LIVE_ACK:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      BINGX_API_KEY: ${BINGX_API_KEY:-}
+      BINGX_API_SECRET: ${BINGX_API_SECRET:-}
+      TICK_MS: ${TICK_MS:-10000}
+      JEV_DAILY_USD_CAP: ${JEV_DAILY_USD_CAP:-2}
+      BEE_START_EQUITY_USD: ${BEE_START_EQUITY_USD:-333}
+      SETUP_WINDOW_MIN: ${SETUP_WINDOW_MIN:-120}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+      # Local build: no GitHub release check. The Hive's leaderboard verifies fills against OKX prices, so leave it off.
+      UPDATE_CHECK: "false"
+      ENGINE_BIND: 0.0.0.0
+      ENGINE_PORT: "8080"
+      DB_PATH: /data/bees-{mode}.sqlite
+      SETTINGS_PATH: /data/settings.json
+    volumes:
+      - bees-data:/data
+    expose:
+      - "8080"
+
+  web:
+    image: beebots-web:bingx
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    depends_on: [engine]
+    user: "1000:1000"
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    # Only this machine can reach the dashboard.
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      SITE_ADDRESS: ":80"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  bees-data:
+  caddy-data:
+  caddy-config:

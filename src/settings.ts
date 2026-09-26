@@ -81,7 +81,11 @@ export const SettingsSchema = z.object({
   ownerPasswordHash: z.string().startsWith("scrypt$").optional(),
   /** When the operator ticked the risk statements on the Setup page. */
   acceptedRiskAt: z.number(),
-  bees: z.array(BeeSchema).length(3),
+  // BingX branch: one bee (config.ts BEES); a file saved with three keeps the first. settings.ts cannot import config.ts.
+  bees: z
+    .array(BeeSchema)
+    .min(1)
+    .transform((b) => b.slice(0, 1)),
   /** The "Join the Hive?" answer on the Setup page (absent in files saved before the Hive existed). */
   hive: z.boolean().optional(),
   createdAt: z.number(),
