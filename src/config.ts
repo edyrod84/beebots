@@ -107,7 +107,7 @@ const EnvSchema = z.object({
   // Written by the Setup page. Anything set in the environment wins over it.
   SETTINGS_PATH: str("./data/settings.json"),
   OPENAI_API_KEY: opt,
-  OPENAI_TEXT_MODEL: str("gpt-5.4-nano"),
+  OPENAI_TEXT_MODEL: str("gpt-6-luna"),
   OPENAI_IMAGE_MODEL: str("gpt-image-2"),
   // Optional links shown on the dashboard (the "Hosted on Hostinger" chip and the "Get the code" link).
   HOST_LINK: str("https://mrc.fm/beebots"),

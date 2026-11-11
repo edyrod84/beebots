@@ -58,7 +58,7 @@ function runSetup() {
   const setup = new Setup({
     settingsPath: SETTINGS_PATH,
     jevModel: env.JEV_MODEL?.trim() || "jev-1.13.0",
-    openai: { apiKey: env.OPENAI_API_KEY?.trim() || undefined, textModel: env.OPENAI_TEXT_MODEL?.trim() || "gpt-5.4-nano", imageModel: env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2" },
+    openai: { apiKey: env.OPENAI_API_KEY?.trim() || undefined, textModel: env.OPENAI_TEXT_MODEL?.trim() || "gpt-6-luna", imageModel: env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2" },
     refDir: REF_DIR,
     windowMin: Math.max(1, Number(env.SETUP_WINDOW_MIN) || 120),
     bingxApiBase: env.BINGX_API_BASE?.trim().replace(/\/+$/, "") || "https://open-api.bingx.com",
